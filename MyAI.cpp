@@ -15,6 +15,12 @@
 #define NOEATFLIP_LIMIT 60
 #define POSITION_REPETITION_LIMIT 3
 
+#include <random>
+std::mt19937 rng(880301);
+int randint(int lb, int ub) {
+  return std::uniform_int_distribution<int>(lb, ub)(rng);
+}
+
 MyAI::MyAI(void) { srand(time(NULL)); }
 
 MyAI::~MyAI(void) {}
@@ -137,6 +143,13 @@ bool MyAI::init_board(const char* data[], char* response) {
 
 // *********************** AI FUNCTION *********************** //
 
+int MyAI::zobrist(ChessBoard* chessboard) {
+  int ret = 0;
+  for (int i = 0; i < 32; i++) {
+    ret ^= random_table[chessboard->board[i]][i];
+  }
+  return ret;
+}
 void MyAI::initMask() {
   row_mask[0] = std::bitset<32>(0xf);
   row_mask[1] = std::bitset<32>(0xf0);
@@ -163,8 +176,19 @@ void MyAI::initMask() {
     }
   }
 }
+void MyAI::initRandomTable() {
+  for (int i = 0; i < 15; i++) {
+    for (int j = 0; j < 32; j++) {
+      random_table[i][j] = randint(1, (1 << tb_size) - 1);
+    }
+  }
+  for (int j = 0; j < 32; j++) {
+    random_table[CHESS_EMPTY][j] = 0;
+  }
+}
 void MyAI::initBoardState() {
   initMask();
+  initRandomTable();
 
   for (int i = 0; i < 14; i++) {
     main_chessboard.chessBB[i] = std::bitset<32>(0);
@@ -180,6 +204,7 @@ void MyAI::initBoardState() {
   main_chessboard.black_chess_num = 16;
   main_chessboard.no_eat_flip = 0;
   main_chessboard.history_count = 0;
+  main_chessboard.hash = zobrist(&main_chessboard);
 }
 void MyAI::initBoardState(const char* data[]) { initMask(); }
 int MyAI::convertChessNo(char c) {
@@ -211,6 +236,10 @@ void MyAI::makeMove(ChessBoard* chessboard, const int move,
     chessboard->board[dst] = flip_chess_no;
     chessboard->cover_chess[flip_chess_no]--;
     chessboard->no_eat_flip = 0;
+    chessboard->hash ^=
+        random_table[CHESS_COVER][src] ^ random_table[flip_chess_no][src];
+    // if(chessboard->hash != zobrist(chessboard)) fprintf(stderr, "not
+    // equal\n");
   } else {
     if (dst_no != CHESS_EMPTY) {  // capturing move
       if (dst_no / 7 == RED)
@@ -220,6 +249,7 @@ void MyAI::makeMove(ChessBoard* chessboard, const int move,
       chessboard->no_eat_flip = 0;
       chessboard->chessBB[dst_no][dst] = 0;
       chessboard->colorBB[dst_no / 7][dst] = 0;
+      chessboard->hash ^= random_table[dst_no][dst];
     } else {
       chessboard->no_eat_flip += 1;
     }
@@ -231,6 +261,9 @@ void MyAI::makeMove(ChessBoard* chessboard, const int move,
     chessboard->emptyBB[dst] = 0;
     chessboard->board[dst] = chessboard->board[src];
     chessboard->board[src] = CHESS_EMPTY;
+    chessboard->hash ^= random_table[src_no][src] ^ random_table[src_no][dst];
+    // if(chessboard->hash != zobrist(chessboard)) fprintf(stderr, "not
+    // equal\n");
   }
 }
 void MyAI::generateMove(char move[6]) {
@@ -250,6 +283,7 @@ void MyAI::generateMove(char move[6]) {
     }
   */
 
+  collision = hit = 0;
   int best_move, best_move_tmp = 0, iterative_depth;
   double score;
   for (iterative_depth = 3; !isTimeUp(); iterative_depth++) {
@@ -265,11 +299,50 @@ void MyAI::generateMove(char move[6]) {
           '1' + (7 - end_point / 4));
 
   fprintf(stderr, "iterative depth: %d, score = %lf\n", iterative_depth, score);
+  fprintf(stderr, "hit = %d, collision = %d, collision probability = %lf\n", hit, collision, 1.0 * collision / (hit + collision));
 }
+int tb_size = 28;
+Entry transposition_table[2][1 << 28];
 double MyAI::negaScout(ChessBoard chessboard, int* move, const int color,
                        const int remain_depth, double alpha, double beta) {
   int moves[128];
-  int move_count = expand(chessboard, moves, color);
+  int move_count = 0;
+
+  double m = -DBL_MAX;
+  Entry entry = transposition_table[color][chessboard.hash];
+  if (entry.exact != -1) {
+    int identical = 1;
+    for (int i = 0; i < 14; i++) {
+      if (entry.chessBB[i] != chessboard.chessBB[i]) {
+        identical = 0;
+        collision++;
+        break;
+      }
+    }
+    if (identical) hit++;
+    if (identical && entry.height >= remain_depth) {
+      if (entry.exact == 1) {
+        *move = entry.move;
+        return entry.score;
+      } else if (entry.exact == 2) {  // upperbound
+        beta = std::min(beta, entry.score);
+        if (beta <= alpha) {
+          *move = entry.move;
+          return beta;
+        }
+      } else {  // lowerbound
+        alpha = std::max(alpha, entry.score);
+        if (alpha >= beta) {
+          *move = entry.move;
+          return alpha;
+        }
+      }
+    } else if (identical && entry.height < remain_depth) {
+      moves[move_count++] = entry.move;
+    }
+  }
+
+  move_count += expand(chessboard, &(moves[move_count]), color);
 
   if (isTimeUp() || chessboard.red_chess_num == 0 ||
       chessboard.black_chess_num == 0 || move_count == 0 ||
@@ -278,7 +351,7 @@ double MyAI::negaScout(ChessBoard chessboard, int* move, const int color,
            (color == this->agent_color ? 1 : -1);
   }
 
-  double m = -DBL_MAX, n = beta;
+  double n = beta;
   for (int i = 0; i < move_count; i++) {
     ChessBoard new_chessboard = chessboard;
     makeMove(&new_chessboard, moves[i], 0);
@@ -296,10 +369,22 @@ double MyAI::negaScout(ChessBoard chessboard, int* move, const int color,
     }
 
     if (m >= beta) {
+      if (remain_depth > transposition_table[color][chessboard.hash].height)
+        transposition_table[color][chessboard.hash] =
+            Entry(chessboard.chessBB, m, remain_depth, 0, moves[i]);
       return m;
     }
 
     n = std::max(alpha, m) + epsilon;
+  }
+  if (m > alpha) {
+    if (remain_depth > transposition_table[color][chessboard.hash].height)
+      transposition_table[color][chessboard.hash] =
+          Entry(chessboard.chessBB, m, remain_depth, 1, *move);
+  } else {
+    if (remain_depth > transposition_table[color][chessboard.hash].height)
+      transposition_table[color][chessboard.hash] =
+          Entry(chessboard.chessBB, m, remain_depth, 2, *move);
   }
   return m;
 }
@@ -314,6 +399,7 @@ double MyAI::alphaBeta(ChessBoard chessboard, int* move, const int color,
     return evaluate(&chessboard, move_count, color) *
            (color == this->agent_color ? 1 : -1);
   }
+
   double m = alpha;
   for (int i = 0; i < move_count; i++) {
     ChessBoard new_chessboard = chessboard;

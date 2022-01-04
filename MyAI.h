@@ -29,7 +29,28 @@ struct ChessBoard {
   int no_eat_flip;
   int history[512];
   int history_count;
+  int hash;
 };
+
+struct Entry {
+  std::bitset<32> chessBB[14];
+  double score;
+  int height;
+  int exact;  // exact = -1: invalid; 0: lowerbound; 1: exact; 2: upperbound;
+  int move;
+
+  Entry() { exact = -1; }
+  Entry(std::bitset<32>* _chessBB, double _score, int _height, int _exact,
+        int _move)
+      : score(_score), height(_height), exact(_exact), move(_move) {
+    for (int i = 0; i < 14; i++) {
+      chessBB[i] = _chessBB[i];
+    }
+  }
+};
+
+extern int tb_size;
+extern Entry transposition_table[2][1 << 28];
 
 class MyAI {
   const char* commands_name[COMMAND_NUM] = {
@@ -78,6 +99,11 @@ class MyAI {
 
   // masks
   std::bitset<32> pmoves[32], row_mask[8], column_mask[4];
+  int random_table[16][32];
+
+  // statistics
+  int collision;
+  int hit;
 
 #ifdef WINDOWS
   clock_t begin;
@@ -86,6 +112,7 @@ class MyAI {
 #endif
 
   void initMask();
+  void initRandomTable();
   void initBoardState();
   void initBoardState(const char* data[]);
   int convertChessNo(char c);
@@ -107,6 +134,7 @@ class MyAI {
   bool isTimeUp();
   bool Referee(const int* chess, const int from_location_no,
                const int to_location_no, const int UserId);
+  int zobrist(ChessBoard* chessboard);
 };
 
 #endif
