@@ -284,12 +284,14 @@ void MyAI::generateMove(char move[6]) {
   */
 
   collision = hit = 0;
+  best = search_cnt = 0;
   int best_move, best_move_tmp = 0, iterative_depth;
   double score;
-  for (iterative_depth = 3; !isTimeUp(); iterative_depth++) {
+  for (iterative_depth = 4; !isTimeUp(); iterative_depth += 2) {
+    memset(HT, 0, sizeof(HT));
     best_move = best_move_tmp;
     score = negaScout(this->main_chessboard, &best_move_tmp, this->agent_color,
-                      iterative_depth, -DBL_MAX, DBL_MAX);
+                      0, iterative_depth, -DBL_MAX, DBL_MAX);
   }
 
   int start_point = best_move >> 5;
@@ -299,12 +301,16 @@ void MyAI::generateMove(char move[6]) {
           '1' + (7 - end_point / 4));
 
   fprintf(stderr, "iterative depth: %d, score = %lf\n", iterative_depth, score);
-  fprintf(stderr, "hit = %d, collision = %d, collision probability = %lf\n", hit, collision, 1.0 * collision / (hit + collision));
+  fprintf(stderr, "hit = %d, collision = %d, collision probability = %lf\n",
+          hit, collision, 1.0 * collision / (hit + collision));
+  fprintf(stderr, "average best move occurs at %lf move\n",
+          1.0 * best / search_cnt + 1);
 }
 int tb_size = 28;
 Entry transposition_table[2][1 << 28];
 double MyAI::negaScout(ChessBoard chessboard, int* move, const int color,
-                       const int remain_depth, double alpha, double beta) {
+                       const int depth, const int remain_depth, double alpha,
+                       double beta) {
   int moves[128];
   int move_count = 0;
 
@@ -338,7 +344,7 @@ double MyAI::negaScout(ChessBoard chessboard, int* move, const int color,
         }
       }
     } else if (identical && entry.height < remain_depth) {
-      moves[move_count++] = entry.move;
+      moves[move_count++] = entry.move;  // necessary??
     }
   }
 
@@ -352,23 +358,29 @@ double MyAI::negaScout(ChessBoard chessboard, int* move, const int color,
   }
 
   double n = beta;
+  int where = 0;
   for (int i = 0; i < move_count; i++) {
     ChessBoard new_chessboard = chessboard;
     makeMove(&new_chessboard, moves[i], 0);
     int best_move;
-    double t = -negaScout(new_chessboard, &best_move, color ^ 1,
+    double t = -negaScout(new_chessboard, &best_move, color ^ 1, depth + 1,
                           remain_depth - 1, -n, -std::max(alpha, m));
     if (t > m) {
       *move = moves[i];
+      where = i;
       if (abs(n - beta) < epsilon || remain_depth < 3 || t >= beta) {
         m = t;
       } else {
-        m = -negaScout(new_chessboard, &best_move, color ^ 1, remain_depth - 1,
-                       -beta, -t);
+        m = -negaScout(new_chessboard, &best_move, color ^ 1, depth + 1,
+                       remain_depth - 1, -beta, -t);
       }
     }
 
     if (m >= beta) {
+      *move = moves[i];
+      best += i;
+      search_cnt++;
+      HT[*move] += 1 << depth;
       if (remain_depth > transposition_table[color][chessboard.hash].height)
         transposition_table[color][chessboard.hash] =
             Entry(chessboard.chessBB, m, remain_depth, 0, moves[i]);
@@ -386,6 +398,8 @@ double MyAI::negaScout(ChessBoard chessboard, int* move, const int color,
       transposition_table[color][chessboard.hash] =
           Entry(chessboard.chessBB, m, remain_depth, 2, *move);
   }
+  best += where; search_cnt++;
+  HT[*move] += 1 << depth;
   return m;
 }
 double MyAI::alphaBeta(ChessBoard chessboard, int* move, const int color,
@@ -566,6 +580,8 @@ int MyAI::expand(ChessBoard chessboard, int* moves, int color) {
       }
     }
   }
+  std::sort(moves, moves + move_count,
+            [&](int x, int y) { return HT[x] > HT[y]; });
   return move_count;
 }
 

@@ -96,6 +96,7 @@ class MyAI {
                            10, 20, 29, 25, 12, 9,  24, 8,  23, 22};
   const char skind[17] = "PCNRMGKpcnrmgkX-";
   double epsilon = 1e-10;
+  int HT[2048];
 
   // masks
   std::bitset<32> pmoves[32], row_mask[8], column_mask[4];
@@ -104,6 +105,8 @@ class MyAI {
   // statistics
   int collision;
   int hit;
+  int best;
+  int search_cnt;
 
 #ifdef WINDOWS
   clock_t begin;
@@ -121,7 +124,7 @@ class MyAI {
   void generateMove(char move[6]);
   double alphaBeta(const ChessBoard chessboard, int* move, const int color,
                    const int depth, double alpha, double beta);
-  double negaScout(ChessBoard chessboard, int* move, const int color,
+  double negaScout(ChessBoard chessboard, int* move, const int color, const int depth,
                    const int remain_depth, double alpha, double beta);
   int expand(ChessBoard chessboard, int* moves, int color);
   double evaluate(ChessBoard* chessboard, int move_count, int color);
