@@ -287,11 +287,43 @@ void MyAI::generateMove(char move[6]) {
   best = search_cnt = 0;
   int best_move, best_move_tmp = 0, iterative_depth;
   double score;
+  double last_elapsed = 0., former_elapsed = 0.;
   for (iterative_depth = 4; !isTimeUp(); iterative_depth += 2) {
     memset(HT, 0, sizeof(HT));
+
+#ifdef WINDOWS
+    clock_t start_time;
+    start_time = clock();
+
+    double remain_time = (start_time - begin);
+#else
+    struct timeval start_time;
+    gettimeofday(&start_time, 0);
+    long seconds = start_time.tv_sec - begin.tv_sec;
+    long microseconds = start_time.tv_usec - begin.tv_usec;
+    double remain_time = (seconds * 1000 + microseconds * 1e-3);
+#endif
+
     best_move = best_move_tmp;
+    if (iterative_depth >= 8 &&
+        TIME_LIMIT * 1000 - remain_time <
+            last_elapsed / former_elapsed * last_elapsed) {
+      break;
+    }
     score = negaScout(this->main_chessboard, &best_move_tmp, this->agent_color,
                       0, iterative_depth, -DBL_MAX, DBL_MAX);
+
+    former_elapsed = last_elapsed;
+#ifdef WINDOWS
+    clock_t end = clock();
+    last_elapsed = (end - start_time);
+#else
+    struct timeval end;
+    gettimeofday(&end, 0);
+    seconds = end.tv_sec - start_time.tv_sec;
+    microseconds = end.tv_usec - start_time.tv_usec;
+    last_elapsed = (seconds * 1000 + microseconds * 1e-3);
+#endif
   }
 
   int start_point = best_move >> 5;
