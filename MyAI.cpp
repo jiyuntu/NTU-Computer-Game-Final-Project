@@ -237,7 +237,7 @@ void MyAI::makeMove(ChessBoard* chessboard, const int move,
     chessboard->cover_chess[flip_chess_no]--;
     chessboard->no_eat_flip = 0;
     chessboard->hash ^=
-        random_table[CHESS_COVER][src] ^ random_table[flip_chess_no][src];
+        random_table[CHESS_COVER][dst] ^ random_table[flip_chess_no][dst];
     // if(chessboard->hash != zobrist(chessboard)) fprintf(stderr, "not
     // equal\n");
   } else {
@@ -355,7 +355,7 @@ double MyAI::negaScout(ChessBoard chessboard, int* move, const int color,
      // repetition draw.
 
   double m = -DBL_MAX;
-
+  
   Entry entry = transposition_table[color][chessboard.hash];
   if (entry.exact != -1) {
     int identical = 1;
@@ -372,15 +372,19 @@ double MyAI::negaScout(ChessBoard chessboard, int* move, const int color,
         *move = entry.move;
         return entry.score;
       } else if (entry.exact == 2) {  // upperbound
-        beta = std::min(beta, entry.score);
-        if (beta <= alpha) {
+        if (entry.score < beta) {
+          beta = entry.score;
           *move = entry.move;
+        }
+        if (beta <= alpha) {
           return beta;
         }
       } else {  // lowerbound
-        alpha = std::max(alpha, entry.score);
-        if (alpha >= beta) {
+        if (entry.score > alpha) {
+          alpha = entry.score;
           *move = entry.move;
+        }
+        if (alpha >= beta) {
           return alpha;
         }
       }
@@ -388,6 +392,7 @@ double MyAI::negaScout(ChessBoard chessboard, int* move, const int color,
       moves[move_count++] = entry.move;  // TODO: do once
     }
   }
+  
 
   double n = beta;
   int where = 0;
@@ -412,7 +417,7 @@ double MyAI::negaScout(ChessBoard chessboard, int* move, const int color,
       *move = moves[i];
       best += i;
       search_cnt++;
-      HT[*move] += 1 << depth;
+      HT[*move] += 1 << remain_depth;
       transposition_table[color][chessboard.hash] =
           Entry(chessboard.chessBB, m, remain_depth, 0, moves[i]);
       return m;
@@ -429,7 +434,7 @@ double MyAI::negaScout(ChessBoard chessboard, int* move, const int color,
   }
   best += where;
   search_cnt++;
-  HT[*move] += 1 << depth;
+  HT[*move] += 1 << remain_depth;
   return m;
 }
 double MyAI::alphaBeta(ChessBoard chessboard, int* move, const int color,
@@ -627,6 +632,16 @@ double MyAI::evaluate(ChessBoard* chessboard, int move_count, int color) {
   } else if (!isDraw(chessboard)) {
     static double values[14] = {1, 180, 6, 18, 90, 270, 810,
                                 1, 180, 6, 18, 90, 270, 810};
+
+    double piece_value = 0.;
+    for (int i = 0; i < 14; i++) {
+      if (i / 7 == this->agent_color)
+        piece_value += chessboard->chessBB[i].count() * values[i];
+      else
+        piece_value -= chessboard->chessBB[i].count() * values[i];
+    }
+    score = piece_value / 1943.;
+
     static double influence[14][14] = {
         {0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 108},
         {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
@@ -642,19 +657,9 @@ double MyAI::evaluate(ChessBoard* chessboard, int move_count, int color) {
         {12, 48, 24, 36, 58, 0, 0, 0, 0, 0, 0, 0, 0, 0},
         {12, 48, 24, 36, 60, 106, 0, 0, 0, 0, 0, 0, 0, 0},
         {0, 48, 24, 36, 60, 108, 120, 0, 0, 0, 0, 0, 0, 0}};
-
-    double piece_value = 0.;
-    for (int i = 0; i < 14; i++) {
-      if (i / 7 == this->agent_color)
-        piece_value += chessboard->chessBB[i].count() * values[i];
-      else
-        piece_value -= chessboard->chessBB[i].count() * values[i];
-    }
-
-    score = piece_value / 1943.;
-
     if (chessboard->red_chess_num <= 5 || chessboard->black_chess_num <= 5) {
-      int pos[2][32];
+      // manhattan distance
+      int pos[2][16];
       int piece_cnt[2] = {0};
       for (int i = 0; i < 14; i++) {
         int x;
@@ -663,22 +668,20 @@ double MyAI::evaluate(ChessBoard* chessboard, int move_count, int color) {
           pos[i / 7][piece_cnt[i / 7]++] = x;
         }
       }
-      int real_influence = 0, expected_influence = 0;
-      for (int i = 0; i < piece_cnt[color]; i++) {
-        for (int j = 0; j < piece_cnt[color ^ 1]; j++) {
-          int from = pos[color][i], to = pos[color ^ 1][j];
+      int real_influence = 0;
+      for (int i = 0; i < piece_cnt[agent_color]; i++) {
+        for (int j = 0; j < piece_cnt[agent_color ^ 1]; j++) {
+          int from = pos[agent_color][i], to = pos[agent_color ^ 1][j];
           int md = abs(from / 4 - to / 4) + abs(from % 4 - to % 4);
           real_influence +=
-              md == 1
+              (md == 1)
                   ? influence[chessboard->board[from]][chessboard->board[to]] /
                         2.
                   : influence[chessboard->board[from]][chessboard->board[to]] *
                         pow(2, 2 - md);
-          expected_influence +=
-              influence[chessboard->board[from]][chessboard->board[to]];
         }
       }
-      score = score * 7. / 8. + 1.0 * real_influence / expected_influence / 8.;
+      score = score * 7. / 8. + 1.0 * real_influence / 8.;
     }
 
     score = score * (WIN - 0.01);
