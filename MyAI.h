@@ -18,7 +18,6 @@
 #define CHESS_COVER 14
 #define CHESS_EMPTY 15
 #define COMMAND_NUM 19
-#define TIME_LIMIT 9.5
 
 struct ChessBoard {
   std::bitset<32> chessBB[14];
@@ -104,6 +103,7 @@ class MyAI {
   const char skind[17] = "PCNRMGKpcnrmgkX-";
   double epsilon = 1e-7;
   int HT[2048];
+  double time_limit = 9.5;
 
   // masks
   std::bitset<32> pmoves[32], row_mask[8], column_mask[4];
@@ -129,8 +129,9 @@ class MyAI {
   void makeMove(ChessBoard* chessboard, const char move[6]);
   void makeMove(ChessBoard* chessboard, const int move, const int chess_no);
   void generateMove(char move[6]);
-  double alphaBeta(const ChessBoard chessboard, int* move, const int color, int depth,
-                   const int remain_depth, double alpha, double beta);
+  double alphaBeta(const ChessBoard chessboard, int* move, const int color,
+                   int depth, const int remain_depth, double alpha,
+                   double beta);
   double negaScout(ChessBoard chessboard, int* move, const int color,
                    const int depth, const int remain_depth, double alpha,
                    double beta, std::vector<int>* pv, int last_chance);

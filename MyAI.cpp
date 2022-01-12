@@ -206,8 +206,15 @@ void MyAI::initBoardState() {
   main_chessboard.no_eat_flip = 0;
   main_chessboard.history_count = 0;
   main_chessboard.hash = zobrist(&main_chessboard);
+
+  for(int i = 0; i < (1 << tb_size); i++) {
+    transposition_table[0][i].exact = -1;
+    transposition_table[1][i].exact = -1;
+  }
 }
-void MyAI::initBoardState(const char* data[]) { initMask(); }
+void MyAI::initBoardState(const char* data[]) { 
+  initMask();
+}
 int MyAI::convertChessNo(char c) {
   for (int i = 0; i < 14; i++) {
     if (skind[i] == c) return i;
@@ -284,6 +291,10 @@ void MyAI::generateMove(char move[6]) {
       }
     }
   */
+  if (main_chessboard.colorBB[0].count() + main_chessboard.colorBB[1].count() +
+          main_chessboard.emptyBB.count() >=
+      8)
+    time_limit = 18.;
 
   collision = hit = 0;
   best = search_cnt = 0;
@@ -318,7 +329,7 @@ void MyAI::generateMove(char move[6]) {
     best_move = best_move_tmp;
     update_best_move++;
     if (iterative_depth >= 8 &&
-        TIME_LIMIT * 1000 - remain_time <
+        time_limit * 1000 - remain_time <
             last_elapsed / former_elapsed * last_elapsed) {
       break;
     }
@@ -337,7 +348,7 @@ void MyAI::generateMove(char move[6]) {
     last_elapsed = (seconds * 1000 + microseconds * 1e-3);
 #endif
   }
-  if (update_best_move <= 0){
+  if (update_best_move <= 0) {
     best_move = best_move_tmp;  // with chance node, the it can not completely
                                 // search depth = 4 QQ
     pv = pv_tmp;
@@ -456,28 +467,28 @@ double MyAI::negaScout(ChessBoard chessboard, int* move, const int color,
     n = std::max(alpha, m) + epsilon;
   }
 
-  // if (move_count == 0 || (remain_depth > 3 && depth - last_chance >= 3)) {
-  for (int i = 0; i < flip_count; i++) {
-    std::vector<int> pv_child;
-    double t = star0(chessboard, flip_moves[i], color ^ 1, depth + 1,
-                     remain_depth - 1, std::max(alpha, m), beta, &pv_child);
-    if (t > m) {
-      *move = flip_moves[i];
-      *pv = pv_child;
-      pv->push_back(*move);
-      where = move_count + i;
-      m = t;
-    }
-    if (m >= beta) {
-      best += move_count + i;
-      search_cnt++;
-      HT[*move] += 1 << remain_depth;
-      transposition_table[color][chessboard.hash] =
-          Entry(chessboard.chessBB, chessboard.coverBB, m, remain_depth, 0,
-                flip_moves[i]);
+  if (move_count == 0 || (chessboard.board[*move & 31] == CHESS_EMPTY &&  remain_depth > 3 && depth - last_chance >= 3)) {
+    for (int i = 0; i < flip_count; i++) {
+      std::vector<int> pv_child;
+      double t = star0(chessboard, flip_moves[i], color ^ 1, depth + 1,
+                       remain_depth - 1, std::max(alpha, m), beta, &pv_child);
+      if (t > m) {
+        *move = flip_moves[i];
+        *pv = pv_child;
+        pv->push_back(*move);
+        where = move_count + i;
+        m = t;
+      }
+      if (m >= beta) {
+        best += move_count + i;
+        search_cnt++;
+        HT[*move] += 1 << remain_depth;
+        transposition_table[color][chessboard.hash] =
+            Entry(chessboard.chessBB, chessboard.coverBB, m, remain_depth, 0,
+                  flip_moves[i]);
+      }
     }
   }
-  //}
 
   if (m > alpha) {
     transposition_table[color][chessboard.hash] = Entry(
@@ -508,7 +519,7 @@ double MyAI::star0(ChessBoard chessboard, int move, int color, int depth,
     remain_total += chessboard.cover_chess[i];
   }
   double E_score =
-      (total / remain_total);  // calculate the expect value of flip
+      (1.0 * total / remain_total);  // calculate the expect value of flip
   return E_score;
 }
 double MyAI::star1(ChessBoard chessboard, int move, int color, int depth,
@@ -546,8 +557,9 @@ double MyAI::star1(ChessBoard chessboard, int move, int color, int depth,
   }
   return vexp;
 }
-double MyAI::alphaBeta(ChessBoard chessboard, int* move, const int color, int depth,
-                       const int remain_depth, double alpha, double beta) {
+double MyAI::alphaBeta(ChessBoard chessboard, int* move, const int color,
+                       int depth, const int remain_depth, double alpha,
+                       double beta) {
   int moves[128];
   int move_count = expand(chessboard, moves, color);
 
@@ -763,15 +775,16 @@ int MyAI::definitely_win(ChessBoard* chessboard) {
   return 0;
 }
 
-double MyAI::evaluate(ChessBoard* chessboard, int move_count, int color, int depth) {
+double MyAI::evaluate(ChessBoard* chessboard, int move_count, int color,
+                      int depth) {
   // use my point of view
-  double score = 0;
 
+  double score = 0;
   if (move_count == 0) {
     if (color == this->agent_color)
-      score += LOSE - WIN;
+      score += (LOSE - WIN) / depth * 2;
     else
-      score += WIN - LOSE;
+      score += (WIN - LOSE) / depth * 2;
     score -= 0.01 * depth;
   } else if (!isDraw(chessboard)) {
     static double values[14] = {1, 180, 6, 18, 90, 270, 810,
@@ -823,11 +836,12 @@ double MyAI::evaluate(ChessBoard* chessboard, int move_count, int color, int dep
                    ? influence[chessboard->board[from]][chessboard->board[to]] /
                          4.
                    : influence[chessboard->board[from]][chessboard->board[to]] *
-                         pow(2, 1 - md));
+                         pow(1.5, 1 - md));
         }
       }
       score = score * 7. / 8. + 1.0 * real_influence / 8.;
 
+      
       /*
       // mobility
       double mobility = 0.;
@@ -841,9 +855,11 @@ double MyAI::evaluate(ChessBoard* chessboard, int move_count, int color, int dep
             mobility += 0.25 * (4 - pmoves[x].count()) * values[i];
         }
       }
-      score = score * 7. / 8. + mobility / 1943. / 8.;
+      score += mobility / 1943. / 9.;
       */
+      
     }
+
     // definitely win / lose
     if (definitely_win(chessboard) == 1)
       score = score * 0.2 + 0.8;
@@ -940,5 +956,5 @@ bool MyAI::isTimeUp() {
   elapsed = (seconds * 1000 + microseconds * 1e-3);
 #endif
 
-  return elapsed >= TIME_LIMIT * 1000;
+  return elapsed >= time_limit * 1000;
 }
