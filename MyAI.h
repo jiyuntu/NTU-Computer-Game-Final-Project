@@ -133,7 +133,7 @@ class MyAI {
                    const int depth, double alpha, double beta);
   double negaScout(ChessBoard chessboard, int* move, const int color,
                    const int depth, const int remain_depth, double alpha,
-                   double beta, std::vector<int>* pv);
+                   double beta, std::vector<int>* pv, int last_chance);
   int expand(ChessBoard chessboard, int* moves, int color);
   double evaluate(ChessBoard* chessboard, int move_count, int color);
   int popLSB(std::bitset<32>* BB);
@@ -148,7 +148,11 @@ class MyAI {
   int zobrist(ChessBoard* chessboard);
   int expandFlip(ChessBoard chessboard, int* flip_moves);
   double star1(ChessBoard chessboard, int pos, int color, int depth,
-               int remain_depth, double alpha, double beta, std::vector<int>* pv);
+               int remain_depth, double alpha, double beta,
+               std::vector<int>* pv);
+  double star0(ChessBoard chessboard, int pos, int color, int depth,
+               int remain_depth, double alpha, double beta,
+               std::vector<int>* pv);
   int definitely_win(ChessBoard* chessboard);
 };
 

@@ -288,6 +288,7 @@ void MyAI::generateMove(char move[6]) {
   collision = hit = 0;
   best = search_cnt = 0;
   int best_move, best_move_tmp = 0, iterative_depth = 4;
+  int update_best_move = -1;
   double score = 0.;
   double last_elapsed = 0., former_elapsed = 0.;
   std::vector<int> pv, pv_tmp;
@@ -315,6 +316,7 @@ void MyAI::generateMove(char move[6]) {
 
     pv = pv_tmp;
     best_move = best_move_tmp;
+    update_best_move++;
     if (iterative_depth >= 8 &&
         TIME_LIMIT * 1000 - remain_time <
             last_elapsed / former_elapsed * last_elapsed) {
@@ -322,7 +324,7 @@ void MyAI::generateMove(char move[6]) {
     }
     pv_tmp.clear();
     score = negaScout(this->main_chessboard, &best_move_tmp, this->agent_color,
-                      0, iterative_depth, -DBL_MAX, DBL_MAX, &pv_tmp);
+                      0, iterative_depth, -DBL_MAX, DBL_MAX, &pv_tmp, -100);
     former_elapsed = last_elapsed;
 #ifdef WINDOWS
     clock_t end = clock();
@@ -335,6 +337,9 @@ void MyAI::generateMove(char move[6]) {
     last_elapsed = (seconds * 1000 + microseconds * 1e-3);
 #endif
   }
+  if (update_best_move <= 0)
+    best_move = best_move_tmp;  // with chance node, the it can not completely
+                                // search depth = 4 QQ
 
 statistics:
   int start_point = best_move >> 5;
@@ -358,7 +363,7 @@ int tb_size = 22;
 Entry transposition_table[2][1 << 22];
 double MyAI::negaScout(ChessBoard chessboard, int* move, const int color,
                        const int depth, const int remain_depth, double alpha,
-                       double beta, std::vector<int>* pv) {
+                       double beta, std::vector<int>* pv, int last_chance) {
   int moves[128];
   int move_count = expand(chessboard, moves, color);
   int flip_moves[64], flip_count;
@@ -422,7 +427,8 @@ double MyAI::negaScout(ChessBoard chessboard, int* move, const int color,
     std::vector<int> pv_child;
     int best_move;
     double t = -negaScout(new_chessboard, &best_move, color ^ 1, depth + 1,
-                          remain_depth - 1, -n, -std::max(alpha, m), &pv_child);
+                          remain_depth - 1, -n, -std::max(alpha, m), &pv_child,
+                          last_chance);
     if (t > m) {
       *move = moves[i];
       *pv = pv_child;
@@ -432,7 +438,7 @@ double MyAI::negaScout(ChessBoard chessboard, int* move, const int color,
         m = t;
       } else {
         m = -negaScout(new_chessboard, &best_move, color ^ 1, depth + 1,
-                       remain_depth - 1, -beta, -t, pv);
+                       remain_depth - 1, -beta, -t, pv, last_chance);
       }
     }
 
@@ -448,26 +454,28 @@ double MyAI::negaScout(ChessBoard chessboard, int* move, const int color,
     n = std::max(alpha, m) + epsilon;
   }
 
-  for (int i = 0; i < flip_count; i++) {
-    std::vector<int> pv_child;
-    double t = star1(chessboard, flip_moves[i], color, depth + 1,
-                     remain_depth - 1, std::max(alpha, m), beta, &pv_child);
-    if (t > m) {
-      *move = flip_moves[i];
-      *pv = pv_child;
-      pv->push_back(*move);
-      where = move_count + i;
-      m = t;
+  //if (move_count == 0 || (remain_depth > 3 && depth - last_chance >= 3)) {
+    for (int i = 0; i < flip_count; i++) {
+      std::vector<int> pv_child;
+      double t = star0(chessboard, flip_moves[i], color ^ 1, depth + 1,
+                       remain_depth - 1, std::max(alpha, m), beta, &pv_child);
+      if (t > m) {
+        *move = flip_moves[i];
+        *pv = pv_child;
+        pv->push_back(*move);
+        where = move_count + i;
+        m = t;
+      }
+      if (m >= beta) {
+        best += move_count + i;
+        search_cnt++;
+        HT[*move] += 1 << remain_depth;
+        transposition_table[color][chessboard.hash] =
+            Entry(chessboard.chessBB, chessboard.coverBB, m, remain_depth, 0,
+                  flip_moves[i]);
+      }
     }
-    if (m >= beta) {
-      best += move_count + i;
-      search_cnt++;
-      HT[*move] += 1 << remain_depth;
-      transposition_table[color][chessboard.hash] =
-          Entry(chessboard.chessBB, chessboard.coverBB, m, remain_depth, 0,
-                flip_moves[i]);
-    }
-  }
+  //}
 
   if (m > alpha) {
     transposition_table[color][chessboard.hash] = Entry(
@@ -480,6 +488,26 @@ double MyAI::negaScout(ChessBoard chessboard, int* move, const int color,
   search_cnt++;
   HT[*move] += 1 << remain_depth;
   return m;
+}
+double MyAI::star0(ChessBoard chessboard, int move, int color, int depth,
+                   int remain_depth, double alpha, double beta,
+                   std::vector<int>* pv) {
+  double total = 0;
+  double remain_total = 0;
+
+  for (int i = 0; i < 14; i++) {
+    if (chessboard.cover_chess[i] == 0) continue;
+    ChessBoard new_chessboard = chessboard;
+    makeMove(&new_chessboard, move, i);
+    int best_move;
+    double t = -negaScout(new_chessboard, &best_move, color, depth,
+                          remain_depth, -DBL_MAX, DBL_MAX, pv, depth - 1);
+    total += chessboard.cover_chess[i] * t;
+    remain_total += chessboard.cover_chess[i];
+  }
+  double E_score =
+      (total / remain_total);  // calculate the expect value of flip
+  return E_score;
 }
 double MyAI::star1(ChessBoard chessboard, int move, int color, int depth,
                    int remain_depth, double alpha, double beta,
@@ -500,12 +528,12 @@ double MyAI::star1(ChessBoard chessboard, int move, int color, int depth,
   M = vmax;
   vexp = 0.;
   for (int i = 0; i < 14; i++) {
-    ChessBoard new_chessboard;
+    if (chessboard.cover_chess[i] == 0) continue;
+    ChessBoard new_chessboard = chessboard;
     makeMove(&new_chessboard, move, i);
     int best_move;
-    double t =
-        negaScout(new_chessboard, &best_move, color == 2 ? i / 7 : color, depth,
-                  remain_depth, std::max(A, vmin), std::min(B, vmax), pv);
+    double t = negaScout(new_chessboard, &best_move, color, depth, remain_depth,
+                         std::max(A, vmin), std::min(B, vmax), pv, depth - 1);
     m = m + P[i] * (t - vmin);
     M = M + P[i] * (t - vmax);
     if (t >= B) return m;
@@ -813,13 +841,12 @@ double MyAI::evaluate(ChessBoard* chessboard, int move_count, int color) {
       }
       score = score * 7. / 8. + mobility / 1943. / 8.;
       */
-
-      // definitely win / lose
-      if (definitely_win(chessboard) == 1)
-        score = score * 0.2 + 0.8;
-      else if (definitely_win(chessboard) == -1)
-        score = score * 0.2 - 0.8;
     }
+    // definitely win / lose
+    if (definitely_win(chessboard) == 1)
+      score = score * 0.2 + 0.8;
+    else if (definitely_win(chessboard) == -1)
+      score = score * 0.2 - 0.8;
 
     score = score * (WIN - 0.01);
   }

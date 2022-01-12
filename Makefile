@@ -3,17 +3,17 @@ OBJ_FOLDER := bin
 
 # check OS
 ifeq ($(OS), Windows_NT) # windows
-	G_PLUS_PLUS := g++ -std=c++11 -static -O3 -Wall -g
+	G_PLUS_PLUS := g++ -std=c++11 -static -O2 -Wall -g
 	EXEC := final.exe
 	DELETE := del /f $(OBJ_FOLDER)\*.o $(EXEC)
 	MAKE_FOLDER := if not exist $(OBJ_FOLDER) mkdir $(OBJ_FOLDER)
 	OS_DEFINE := -DWINDOWS
 else
 	ifeq ($(shell uname), Darwin) # macOS
-		G_PLUS_PLUS := g++ -std=c++11 -O3 -Wall -g
+		G_PLUS_PLUS := g++ -std=c++11 -O2 -Wall -g
 		OS_DEFINE := -DMACOS
 	else # linux
-		G_PLUS_PLUS := g++ -std=c++11 -static -O3 -Wall -g
+		G_PLUS_PLUS := g++ -std=c++11 -static -O2 -Wall -g
 		OS_DEFINE := -DLINUX
 	endif
 	EXEC := exec.final
