@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <bitset>
+#include <vector>
 
 #define RED 0
 #define BLACK 1
@@ -132,7 +133,7 @@ class MyAI {
                    const int depth, double alpha, double beta);
   double negaScout(ChessBoard chessboard, int* move, const int color,
                    const int depth, const int remain_depth, double alpha,
-                   double beta);
+                   double beta, std::vector<int>* pv);
   int expand(ChessBoard chessboard, int* moves, int color);
   double evaluate(ChessBoard* chessboard, int move_count, int color);
   int popLSB(std::bitset<32>* BB);
@@ -147,7 +148,8 @@ class MyAI {
   int zobrist(ChessBoard* chessboard);
   int expandFlip(ChessBoard chessboard, int* flip_moves);
   double star1(ChessBoard chessboard, int pos, int color, int depth,
-               int remain_depth, double alpha, double beta);
+               int remain_depth, double alpha, double beta, std::vector<int>* pv);
+  int definitely_win(ChessBoard* chessboard);
 };
 
 #endif
