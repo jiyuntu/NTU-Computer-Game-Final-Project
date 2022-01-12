@@ -129,13 +129,13 @@ class MyAI {
   void makeMove(ChessBoard* chessboard, const char move[6]);
   void makeMove(ChessBoard* chessboard, const int move, const int chess_no);
   void generateMove(char move[6]);
-  double alphaBeta(const ChessBoard chessboard, int* move, const int color,
-                   const int depth, double alpha, double beta);
+  double alphaBeta(const ChessBoard chessboard, int* move, const int color, int depth,
+                   const int remain_depth, double alpha, double beta);
   double negaScout(ChessBoard chessboard, int* move, const int color,
                    const int depth, const int remain_depth, double alpha,
                    double beta, std::vector<int>* pv, int last_chance);
   int expand(ChessBoard chessboard, int* moves, int color);
-  double evaluate(ChessBoard* chessboard, int move_count, int color);
+  double evaluate(ChessBoard* chessboard, int move_count, int color, int depth);
   int popLSB(std::bitset<32>* BB);
   int popMSB(std::bitset<32>* BB);
   int expandGun(ChessBoard chessboard, int* moves, int color);

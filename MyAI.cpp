@@ -374,7 +374,7 @@ double MyAI::negaScout(ChessBoard chessboard, int* move, const int color,
   if (isTimeUp() || chessboard.red_chess_num == 0 ||
       chessboard.black_chess_num == 0 || move_count + flip_count == 0 ||
       isDraw(&chessboard) || remain_depth <= 0) {
-    return evaluate(&chessboard, move_count + flip_count, color) *
+    return evaluate(&chessboard, move_count + flip_count, color, depth) *
            (color == this->agent_color ? 1 : -1);
   }  // this should be placed before transposition table, in case of position
      // repetition draw.
@@ -546,7 +546,7 @@ double MyAI::star1(ChessBoard chessboard, int move, int color, int depth,
   }
   return vexp;
 }
-double MyAI::alphaBeta(ChessBoard chessboard, int* move, const int color,
+double MyAI::alphaBeta(ChessBoard chessboard, int* move, const int color, int depth,
                        const int remain_depth, double alpha, double beta) {
   int moves[128];
   int move_count = expand(chessboard, moves, color);
@@ -554,7 +554,7 @@ double MyAI::alphaBeta(ChessBoard chessboard, int* move, const int color,
   if (isTimeUp() || chessboard.red_chess_num == 0 ||
       chessboard.black_chess_num == 0 || move_count == 0 ||
       isDraw(&chessboard) || remain_depth <= 0) {
-    return evaluate(&chessboard, move_count, color) *
+    return evaluate(&chessboard, move_count, color, depth) *
            (color == this->agent_color ? 1 : -1);
   }
 
@@ -563,7 +563,7 @@ double MyAI::alphaBeta(ChessBoard chessboard, int* move, const int color,
     ChessBoard new_chessboard = chessboard;
     makeMove(&new_chessboard, moves[i], 0);
     int best_move = 0;
-    double t = -alphaBeta(new_chessboard, &best_move, color ^ 1,
+    double t = -alphaBeta(new_chessboard, &best_move, color ^ 1, depth + 1,
                           remain_depth - 1, -beta, -m);
     if (t > m) {
       m = t;
@@ -763,7 +763,7 @@ int MyAI::definitely_win(ChessBoard* chessboard) {
   return 0;
 }
 
-double MyAI::evaluate(ChessBoard* chessboard, int move_count, int color) {
+double MyAI::evaluate(ChessBoard* chessboard, int move_count, int color, int depth) {
   // use my point of view
   double score = 0;
 
@@ -772,6 +772,7 @@ double MyAI::evaluate(ChessBoard* chessboard, int move_count, int color) {
       score += LOSE - WIN;
     else
       score += WIN - LOSE;
+    score -= 0.01 * depth;
   } else if (!isDraw(chessboard)) {
     static double values[14] = {1, 180, 6, 18, 90, 270, 810,
                                 1, 180, 6, 18, 90, 270, 810};
