@@ -23,6 +23,7 @@ struct ChessBoard {
   std::bitset<32> chessBB[14];
   std::bitset<32> colorBB[2];
   std::bitset<32> emptyBB;
+  std::bitset<32> coverBB;
   int board[32];
   int cover_chess[14];
   int red_chess_num, black_chess_num;
@@ -34,15 +35,20 @@ struct ChessBoard {
 
 struct Entry {
   std::bitset<32> chessBB[14];
+  std::bitset<32> coverBB;
   double score;
   int height;
   int exact;  // exact = -1: invalid; 0: lowerbound; 1: exact; 2: upperbound;
   int move;
 
   Entry() { exact = -1; }
-  Entry(std::bitset<32>* _chessBB, double _score, int _height, int _exact,
-        int _move)
-      : score(_score), height(_height), exact(_exact), move(_move) {
+  Entry(std::bitset<32>* _chessBB, std::bitset<32> _coverBB, double _score,
+        int _height, int _exact, int _move)
+      : coverBB(_coverBB),
+        score(_score),
+        height(_height),
+        exact(_exact),
+        move(_move) {
     for (int i = 0; i < 14; i++) {
       chessBB[i] = _chessBB[i];
     }
@@ -50,7 +56,7 @@ struct Entry {
 };
 
 extern int tb_size;
-extern Entry transposition_table[2][1 << 28];
+extern Entry transposition_table[2][1 << 22];
 
 class MyAI {
   const char* commands_name[COMMAND_NUM] = {
@@ -95,7 +101,7 @@ class MyAI {
                            19, 28, 11, 7,  21, 30, 4,  15, 26, 13, 18,
                            10, 20, 29, 25, 12, 9,  24, 8,  23, 22};
   const char skind[17] = "PCNRMGKpcnrmgkX-";
-  double epsilon = 1e-10;
+  double epsilon = 1e-7;
   int HT[2048];
 
   // masks
@@ -124,8 +130,9 @@ class MyAI {
   void generateMove(char move[6]);
   double alphaBeta(const ChessBoard chessboard, int* move, const int color,
                    const int depth, double alpha, double beta);
-  double negaScout(ChessBoard chessboard, int* move, const int color, const int depth,
-                   const int remain_depth, double alpha, double beta);
+  double negaScout(ChessBoard chessboard, int* move, const int color,
+                   const int depth, const int remain_depth, double alpha,
+                   double beta);
   int expand(ChessBoard chessboard, int* moves, int color);
   double evaluate(ChessBoard* chessboard, int move_count, int color);
   int popLSB(std::bitset<32>* BB);
@@ -138,6 +145,9 @@ class MyAI {
   bool Referee(const int* chess, const int from_location_no,
                const int to_location_no, const int UserId);
   int zobrist(ChessBoard* chessboard);
+  int expandFlip(ChessBoard chessboard, int* flip_moves);
+  double star1(ChessBoard chessboard, int pos, int color, int depth,
+               int remain_depth, double alpha, double beta);
 };
 
 #endif
