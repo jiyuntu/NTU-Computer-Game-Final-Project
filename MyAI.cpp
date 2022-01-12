@@ -207,14 +207,12 @@ void MyAI::initBoardState() {
   main_chessboard.history_count = 0;
   main_chessboard.hash = zobrist(&main_chessboard);
 
-  for(int i = 0; i < (1 << tb_size); i++) {
+  for (int i = 0; i < (1 << tb_size); i++) {
     transposition_table[0][i].exact = -1;
     transposition_table[1][i].exact = -1;
   }
 }
-void MyAI::initBoardState(const char* data[]) { 
-  initMask();
-}
+void MyAI::initBoardState(const char* data[]) { initMask(); }
 int MyAI::convertChessNo(char c) {
   for (int i = 0; i < 14; i++) {
     if (skind[i] == c) return i;
@@ -295,21 +293,38 @@ void MyAI::generateMove(char move[6]) {
           main_chessboard.emptyBB.count() >=
       8)
     time_limit = 18.;
+  else
+    time_limit = 9.;
 
   collision = hit = 0;
   best = search_cnt = 0;
   int best_move, best_move_tmp = 0, iterative_depth = 4;
-  int update_best_move = -1;
-  double score = 0.;
+  double score = 0., threshold = 0.5;
   double last_elapsed = 0., former_elapsed = 0.;
   std::vector<int> pv, pv_tmp;
+  long seconds, microseconds;
 
-  if (agent_color != 0 && agent_color != 1) {
-    best_move = (9 << 5) | 9;
+  if (agent_color != 0 && agent_color != 1) {  // opening strategy
+    best_move = (5 << 5) | 5;
     goto statistics;
   }
 
-  for (; !isTimeUp(); iterative_depth += 2) {
+  // calculate iterative depth = 4
+  memset(HT, 0, sizeof(HT));
+  score = negaScout(this->main_chessboard, &best_move, this->agent_color, 0,
+                    iterative_depth, -DBL_MAX, DBL_MAX, &pv, -100);
+#ifdef WINDOWS
+  clock_t end = clock();
+  last_elapsed = (end - start_time);
+#else
+  struct timeval end;
+  gettimeofday(&end, 0);
+  seconds = end.tv_sec - begin.tv_sec;
+  microseconds = end.tv_usec - begin.tv_usec;
+  last_elapsed = (seconds * 1000 + microseconds * 1e-3);
+#endif
+
+  for (iterative_depth = 6; !isTimeUp(); iterative_depth += 2) {
     memset(HT, 0, sizeof(HT));
 
 #ifdef WINDOWS
@@ -320,22 +335,33 @@ void MyAI::generateMove(char move[6]) {
 #else
     struct timeval start_time;
     gettimeofday(&start_time, 0);
-    long seconds = start_time.tv_sec - begin.tv_sec;
-    long microseconds = start_time.tv_usec - begin.tv_usec;
+    seconds = start_time.tv_sec - begin.tv_sec;
+    microseconds = start_time.tv_usec - begin.tv_usec;
     double remain_time = (seconds * 1000 + microseconds * 1e-3);
 #endif
 
     pv = pv_tmp;
     best_move = best_move_tmp;
-    update_best_move++;
     if (iterative_depth >= 8 &&
         time_limit * 1000 - remain_time <
             last_elapsed / former_elapsed * last_elapsed) {
       break;
     }
     pv_tmp.clear();
-    score = negaScout(this->main_chessboard, &best_move_tmp, this->agent_color,
-                      0, iterative_depth, -DBL_MAX, DBL_MAX, &pv_tmp, -100);
+    double score_tmp = negaScout(
+        this->main_chessboard, &best_move_tmp, this->agent_color, 0,
+        iterative_depth, score - threshold, score + threshold, &pv_tmp, -100);
+    if (score_tmp <= score - threshold) {
+      score_tmp =
+          negaScout(this->main_chessboard, &best_move_tmp, agent_color, 0,
+                    iterative_depth, -DBL_MAX, score_tmp, &pv_tmp, -100);
+    } else if (score_tmp >= score - threshold) {
+      score_tmp =
+          negaScout(this->main_chessboard, &best_move_tmp, agent_color, 0,
+                    iterative_depth, score_tmp, DBL_MAX, &pv_tmp, -100);
+    }
+    score = score_tmp;
+
     former_elapsed = last_elapsed;
 #ifdef WINDOWS
     clock_t end = clock();
@@ -347,11 +373,6 @@ void MyAI::generateMove(char move[6]) {
     microseconds = end.tv_usec - start_time.tv_usec;
     last_elapsed = (seconds * 1000 + microseconds * 1e-3);
 #endif
-  }
-  if (update_best_move <= 0) {
-    best_move = best_move_tmp;  // with chance node, the it can not completely
-                                // search depth = 4 QQ
-    pv = pv_tmp;
   }
 
 statistics:
@@ -467,7 +488,8 @@ double MyAI::negaScout(ChessBoard chessboard, int* move, const int color,
     n = std::max(alpha, m) + epsilon;
   }
 
-  if (move_count == 0 || (chessboard.board[*move & 31] == CHESS_EMPTY &&  remain_depth > 3 && depth - last_chance >= 3)) {
+  if (move_count == 0 || (chessboard.board[*move & 31] == CHESS_EMPTY &&
+                          remain_depth > 3 && depth - last_chance >= 3)) {
     for (int i = 0; i < flip_count; i++) {
       std::vector<int> pv_child;
       double t = star0(chessboard, flip_moves[i], color ^ 1, depth + 1,
@@ -841,7 +863,6 @@ double MyAI::evaluate(ChessBoard* chessboard, int move_count, int color,
       }
       score = score * 7. / 8. + 1.0 * real_influence / 8.;
 
-      
       /*
       // mobility
       double mobility = 0.;
@@ -857,7 +878,40 @@ double MyAI::evaluate(ChessBoard* chessboard, int move_count, int color,
       }
       score += mobility / 1943. / 9.;
       */
-      
+    }
+    if (chessboard->red_chess_num + chessboard->black_chess_num <= 5) {
+      int pos[2][2];
+      int pos_cnt[2] = {0};
+      double distance = 0;
+      for (int k = 0; k < 2; k++) {
+        pos_cnt[0] = pos_cnt[1] = 0;
+        for (int i = k + 0; i < k + 7 && pos_cnt[k] < 2; i++) {
+          if (chessboard->chessBB[i].count()) {
+            int x;
+            for (std::bitset<32> BB = chessboard->chessBB[i];
+                 pos_cnt[k] < 2 && (x = popLSB(&BB) != -1);) {
+              pos[k][pos_cnt[k]++] = x;
+            }
+          }
+        }
+        for (int i = (k ^ 1) + 0; i < (k ^ 1) + 7 && pos_cnt[(k ^ 1)] < 2;
+             i++) {
+          if (chessboard->chessBB[i].count()) {
+            int x;
+            for (std::bitset<32> BB = chessboard->chessBB[i];
+                 pos_cnt[k ^ 1] < 2 && (x = popLSB(&BB) != -1);) {
+              pos[k ^ 1][pos_cnt[k ^ 1]++] = x;
+            }
+          }
+        }
+        double value = 0.1 * (12 - abs(pos[k][0] / 4 - pos[k ^ 1][0] / 4) -
+                              abs(pos[k][0] % 4 - pos[k ^ 1][0] % 4)) +
+                       0.08 * (12 - abs(pos[k][1] / 4 - pos[k ^ 1][0] / 4) -
+                               abs(pos[k][1] % 4 - pos[k ^ 1][0] % 4));
+        if(k == agent_color) distance += value;
+        else distance -= value;
+      }
+      score = score * 0.9 + distance * 0.1;
     }
 
     // definitely win / lose
