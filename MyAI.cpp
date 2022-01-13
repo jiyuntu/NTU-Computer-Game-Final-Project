@@ -423,8 +423,8 @@ statistics:
   }
   fprintf(stderr, "\n");
 }
-int tb_size = 22;
-Entry transposition_table[2][1 << 22];
+int tb_size = 28;
+Entry transposition_table[2][1 << 28];
 double MyAI::negaScout(ChessBoard chessboard, int* move, const int color,
                        const int depth, const int remain_depth, double alpha,
                        double beta, std::vector<int>* pv, int last_chance) {
@@ -813,7 +813,7 @@ int MyAI::definitely_win(ChessBoard* chessboard) {
   };
   if (totalpiece(7 * agent_color + 6) &&
       totalpiece(7 * (agent_color ^ 1) + 0) == 0 &&
-      totalpiece(7 * agent_color + 5) > totalpiece(7 * (agent_color ^ 1) + 5))
+      totalpiece(7 * agent_color + 5) >= totalpiece(7 * (agent_color ^ 1) + 5))
     return 1;
   if (totalpiece(7 * (agent_color ^ 1) + 6) == 0 &&
       totalpiece(7 * agent_color + 5) == 2 &&
@@ -821,7 +821,7 @@ int MyAI::definitely_win(ChessBoard* chessboard) {
     return 1;
   if (totalpiece(7 * (agent_color ^ 1) + 6) &&
       totalpiece(7 * agent_color + 0) == 0 &&
-      totalpiece(7 * (agent_color ^ 1) + 5) > totalpiece(7 * agent_color + 5))
+      totalpiece(7 * (agent_color ^ 1) + 5) >= totalpiece(7 * agent_color + 5))
     return -1;
   if (totalpiece(7 * agent_color + 6) == 0 &&
       totalpiece(7 * (agent_color ^ 1) + 5) == 2 &&
@@ -894,6 +894,7 @@ double MyAI::evaluate(ChessBoard* chessboard, int move_count, int color,
                          pow(1.5, 1 - md));
         }
       }
+      real_influence += 2. * (2 - piece_cnt[agent_color ^ 1]) * 0.45 * pow(1.5, -1);
       score = score * 7. / 8. + 1.0 * real_influence / 8.;
 
       /*

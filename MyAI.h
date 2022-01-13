@@ -57,7 +57,7 @@ struct Entry {
 };
 
 extern int tb_size;
-extern Entry transposition_table[2][1 << 22];
+extern Entry transposition_table[2][1 << 28];
 
 class MyAI {
   const char* commands_name[COMMAND_NUM] = {
