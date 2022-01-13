@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <bitset>
+#include <functional>
 #include <vector>
 
 #define RED 0
@@ -155,6 +156,11 @@ class MyAI {
                int remain_depth, double alpha, double beta,
                std::vector<int>* pv);
   int definitely_win(ChessBoard* chessboard);
+  int MCS_pure();
+  double simulate(ChessBoard chessboard);
+  bool isFinish(const ChessBoard* chessboard, int move_count);
+  double MCS_evaluate(const ChessBoard* chessboard, const int legal_move_count,
+                      const int color);
 };
 
 #endif
