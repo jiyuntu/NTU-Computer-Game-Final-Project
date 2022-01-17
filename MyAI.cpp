@@ -315,12 +315,12 @@ void MyAI::generateMove(char move[6]) {
     goto statistics;
   }
 
-  if (main_chessboard.coverBB.none() &&
+  /*if (main_chessboard.coverBB.none() &&
       (main_chessboard.red_chess_num <= 5 ||
        main_chessboard.black_chess_num <= 5)) {
     best_move = MCS_pure();
     goto statistics;
-  }
+  }*/
 
   // calculate iterative depth = 3
   memset(HT, 0, sizeof(HT));
