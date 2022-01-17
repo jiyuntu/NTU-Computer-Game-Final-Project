@@ -57,7 +57,7 @@ struct Entry {
 };
 
 extern int tb_size;
-extern Entry transposition_table[2][1 << 28];
+extern Entry transposition_table[2][1 << 26];
 
 class MyAI {
   const char* commands_name[COMMAND_NUM] = {
@@ -105,6 +105,7 @@ class MyAI {
   double epsilon = 1e-7;
   int HT[2048];
   double time_limit = 9.5;
+  int first_play;
 
   // masks
   std::bitset<32> pmoves[32], row_mask[8], column_mask[4];
@@ -121,6 +122,8 @@ class MyAI {
 #else
   struct timeval begin;
 #endif
+  double game_elapsed;
+
 
   void initMask();
   void initRandomTable();
