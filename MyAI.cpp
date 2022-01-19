@@ -439,8 +439,8 @@ statistics:
   game_elapsed += (seconds * 1000 + microseconds * 1e-3);
 #endif
 }
-int tb_size = 26;
-Entry transposition_table[2][1 << 26];
+int tb_size = 22;
+Entry transposition_table[2][1 << 22];
 double MyAI::negaScout(ChessBoard chessboard, int* move, const int color,
                        const int depth, const int remain_depth, double alpha,
                        double beta, std::vector<int>* pv, int last_chance) {
@@ -850,13 +850,12 @@ double MyAI::evaluate(ChessBoard* chessboard, int move_count, int color,
   // use my point of view
 
   double score = 0;
-  if (move_count == 0) {
-    if (color == this->agent_color)
+  if (move_count == 0 || isDraw(chessboard)) {
+    if (color == this->agent_color || isDraw(chessboard))
       score += (LOSE - WIN) + (LOSE - WIN) / depth * 2;
     else
       score += (WIN - LOSE) + (WIN - LOSE) / depth * 2;
-    score -= 0.01 * depth;
-  } else if (!isDraw(chessboard)) {
+  } else {
     static double values[14] = {6, 180, 6, 18, 90, 270, 320,
                                 6, 180, 6, 18, 90, 270, 320};
 
