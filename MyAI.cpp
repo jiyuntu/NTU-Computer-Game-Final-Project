@@ -295,7 +295,8 @@ void MyAI::generateMove(char move[6]) {
           main_chessboard.emptyBB.count() >=
       8)
     time_limit = 12.;
-  else if (900 - game_elapsed <= 300) time_limit = 5.;
+  else if (900 - game_elapsed <= 300)
+    time_limit = 5.;
   else
     time_limit = 9.;
 
@@ -309,8 +310,10 @@ void MyAI::generateMove(char move[6]) {
   long seconds, microseconds;
 
   if (first_play) {  // opening strategy
-    if(main_chessboard.board[5] == CHESS_COVER) best_move = (5 << 5) | 5;
-    else best_move = (26 << 5) | 26;
+    if (main_chessboard.board[5] == CHESS_COVER)
+      best_move = (5 << 5) | 5;
+    else
+      best_move = (26 << 5) | 26;
     first_play = 0;
     goto statistics;
   }
@@ -361,7 +364,7 @@ void MyAI::generateMove(char move[6]) {
   }
   */
 
-  for (iterative_depth = 4; !isTimeUp(); iterative_depth += 2) {
+  for (iterative_depth = 5; !isTimeUp(); iterative_depth += 2) {
     memset(HT, 0, sizeof(HT));
 
 #ifdef WINDOWS
@@ -533,8 +536,7 @@ double MyAI::negaScout(ChessBoard chessboard, int* move, const int color,
     n = std::max(alpha, m) + epsilon;
   }
 
-  if (move_count == 0 || (chessboard.board[*move & 31] == CHESS_EMPTY &&
-                          remain_depth > 3 && depth - last_chance >= 3)) {
+  if (move_count == 0 || (remain_depth > 3 && depth - last_chance >= 3)) {
     for (int i = 0; i < flip_count; i++) {
       std::vector<int> pv_child;
       double t = star0(chessboard, flip_moves[i], color ^ 1, depth + 1,
@@ -866,7 +868,7 @@ double MyAI::evaluate(ChessBoard* chessboard, int move_count, int color,
         piece_value -= chessboard->chessBB[i].count() * values[i];
     }
     score = piece_value / 1478.;
-    
+
     static double influence[14][14] = {
         {0, 0, 0, 0, 0, 0, 0, 0.042, 0, 0, 0, 0, 0, 0.45},
         {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
@@ -899,16 +901,23 @@ double MyAI::evaluate(ChessBoard* chessboard, int move_count, int color,
           int from = pos[agent_color][i], to = pos[agent_color ^ 1][j];
           int md = abs(from / 4 - to / 4) + abs(from % 4 - to % 4);
           real_influence +=
-              2. *
               ((md == 1)
                    ? influence[chessboard->board[from]][chessboard->board[to]] /
-                         4.
+                         1.5
                    : influence[chessboard->board[from]][chessboard->board[to]] *
-                         pow(1.5, 1 - md));
+                         pow(1.5, 2 - md));
+          real_influence -=
+              ((md == 1)
+                   ? influence[chessboard->board[to]][chessboard->board[from]] /
+                         1.5
+                   : influence[chessboard->board[to]][chessboard->board[from]] *
+                         pow(1.5, 2 - md));
         }
       }
-      real_influence +=
-          2. * (2 - piece_cnt[agent_color ^ 1]) * 0.45 * pow(1.5, -1);
+      if (piece_cnt[agent_color ^ 1] < 2)
+        real_influence += (2 - piece_cnt[agent_color ^ 1]) * 0.45 * 1.5;
+      if (piece_cnt[agent_color] < 2)
+        real_influence -= (2 - piece_cnt[agent_color]) * 0.45 * 1.5;
       score = score * 7. / 8. + 1.0 * real_influence / 8.;
 
       /*
