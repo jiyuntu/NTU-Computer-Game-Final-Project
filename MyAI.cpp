@@ -390,6 +390,23 @@ void MyAI::generateMove(char move[6]) {
       break;
     }
     pv_tmp.clear();
+
+    /* aspiration search
+    double score_tmp = negaScout(
+         this->main_chessboard, &best_move_tmp, this->agent_color, 0,
+         iterative_depth, score - threshold, score + threshold, &pv_tmp, -100);
+     if (score_tmp <= score - threshold) {
+       score_tmp =
+           negaScout(this->main_chessboard, &best_move_tmp, agent_color, 0,
+                     iterative_depth, -DBL_MAX, score_tmp, &pv_tmp, -100);
+     } else if (score_tmp >= score - threshold) {
+       score_tmp =
+           negaScout(this->main_chessboard, &best_move_tmp, agent_color, 0,
+                     iterative_depth, score_tmp, DBL_MAX, &pv_tmp, -100);
+     }
+     score = score_tmp;
+    */
+
     score = negaScout(this->main_chessboard, &best_move_tmp, this->agent_color,
                       0, iterative_depth, -DBL_MAX, DBL_MAX, &pv_tmp, -100);
 
@@ -509,6 +526,15 @@ double MyAI::negaScout(ChessBoard chessboard, int* move, const int color,
     double t = -negaScout(new_chessboard, &best_move, color ^ 1, depth + 1,
                           remain_depth - 1, -n, -std::max(alpha, m), &pv_child,
                           last_chance);
+    /* dynamic search extension
+    if(remain_depth == 1) {
+      if(best_move & 31 != CHESS_EMPTY) {
+        t = -negaScout(new_chessboard, &best_move, color ^ 1, depth + 1,
+                          remain_depth, -n, -std::max(alpha, m), &pv_child,
+                          last_chance);
+      }
+    }
+    */
     if (t > m) {
       *move = moves[i];
       *pv = pv_child;
@@ -585,6 +611,15 @@ double MyAI::star0(ChessBoard chessboard, int move, int color, int depth,
     int best_move;
     double t = -negaScout(new_chessboard, &best_move, color, depth,
                           remain_depth, -DBL_MAX, DBL_MAX, pv, depth - 1);
+    /* dynamic search extension
+    if(remain_depth == 1) {
+      if(best_move & 31 != CHESS_EMPTY) {
+        t = -negaScout(new_chessboard, &best_move, color ^ 1, depth + 1,
+                          remain_depth, -n, -std::max(alpha, m), &pv_child,
+                          last_chance);
+      }
+    }
+    */
     total += chessboard.cover_chess[i] * t;
     remain_total += chessboard.cover_chess[i];
   }
