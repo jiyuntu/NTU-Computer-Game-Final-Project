@@ -208,11 +208,6 @@ void MyAI::initBoardState() {
   main_chessboard.no_eat_flip = 0;
   main_chessboard.history_count = 0;
   main_chessboard.hash = zobrist(&main_chessboard);
-
-  for (int i = 0; i < (1 << tb_size); i++) {
-    transposition_table[0][i].exact = -1;
-    transposition_table[1][i].exact = -1;
-  }
 }
 void MyAI::initBoardState(const char* data[]) { initMask(); }
 int MyAI::convertChessNo(char c) {
@@ -440,7 +435,6 @@ statistics:
 #endif
 }
 int tb_size = 22;
-Entry transposition_table[2][1 << 22];
 double MyAI::negaScout(ChessBoard chessboard, int* move, const int color,
                        const int depth, const int remain_depth, double alpha,
                        double beta, std::vector<int>* pv, int last_chance) {
@@ -458,46 +452,6 @@ double MyAI::negaScout(ChessBoard chessboard, int* move, const int color,
      // repetition draw.
 
   double m = -DBL_MAX;
-
-  Entry entry = transposition_table[color][chessboard.hash];
-  if (entry.exact != -1) {
-    int identical = 1;
-    for (int i = 0; i < 14; i++) {
-      if (entry.chessBB[i] != chessboard.chessBB[i]) {
-        identical = 0;
-        collision++;
-        break;
-      }
-    }
-    if (identical) hit++;
-    if (identical && entry.height >= remain_depth) {
-      if (entry.exact == 1) {
-        *move = entry.move;
-        pv->push_back(*move);
-        return entry.score;
-      } else if (entry.exact == 2) {  // upperbound
-        if (entry.score < beta) {
-          beta = entry.score;
-          *move = entry.move;
-          pv->push_back(*move);
-        }
-        if (beta <= alpha) {
-          return beta;
-        }
-      } else {  // lowerbound
-        if (entry.score > alpha) {
-          alpha = entry.score;
-          *move = entry.move;
-          pv->push_back(*move);
-        }
-        if (alpha >= beta) {
-          return alpha;
-        }
-      }
-    } else if (identical && entry.height < remain_depth) {
-      moves[move_count++] = entry.move;  // TODO: do once
-    }
-  }
 
   double n = beta;
   int where = 0;
@@ -526,10 +480,6 @@ double MyAI::negaScout(ChessBoard chessboard, int* move, const int color,
       best += i;
       search_cnt++;
       HT[*move] += 1 << remain_depth;
-      if (m <= 0.9)
-        transposition_table[color][chessboard.hash] =
-            Entry(chessboard.chessBB, chessboard.coverBB, m, remain_depth, 0,
-                  moves[i]);
       return m;
     }
 
@@ -552,21 +502,10 @@ double MyAI::negaScout(ChessBoard chessboard, int* move, const int color,
         best += move_count + i;
         search_cnt++;
         HT[*move] += 1 << remain_depth;
-        if (m <= 0.9)
-          transposition_table[color][chessboard.hash] =
-              Entry(chessboard.chessBB, chessboard.coverBB, m, remain_depth, 0,
-                    flip_moves[i]);
       }
     }
   }
 
-  if (m > alpha && m <= 0.9) {
-    transposition_table[color][chessboard.hash] = Entry(
-        chessboard.chessBB, chessboard.coverBB, m, remain_depth, 1, *move);
-  } else if (m <= 0.9) {
-    transposition_table[color][chessboard.hash] = Entry(
-        chessboard.chessBB, chessboard.coverBB, m, remain_depth, 2, *move);
-  }
   best += where;
   search_cnt++;
   HT[*move] += 1 << remain_depth;
