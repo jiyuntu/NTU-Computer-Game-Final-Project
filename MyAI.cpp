@@ -856,8 +856,8 @@ double MyAI::evaluate(ChessBoard* chessboard, int move_count, int color,
     else
       score += (WIN - LOSE) + (WIN - LOSE) / depth * 2;
   } else {
-    static double values[14] = {6, 180, 6, 18, 90, 270, 320,
-                                6, 180, 6, 18, 90, 270, 320};
+    static double values[14] = {18, 180, 18, 36, 90, 270, 320,
+                                18, 180, 18, 36, 90, 270, 320};
 
     double piece_value = 0.;
     for (int i = 0; i < 14; i++) {
@@ -901,8 +901,7 @@ double MyAI::evaluate(ChessBoard* chessboard, int move_count, int color,
           int md = abs(from / 4 - to / 4) + abs(from % 4 - to % 4);
           real_influence +=
               ((md == 1)
-                   ? influence[chessboard->board[from]][chessboard->board[to]] /
-                         1.5
+                   ? influence[chessboard->board[from]][chessboard->board[to]]
                    : influence[chessboard->board[from]][chessboard->board[to]] *
                          pow(1.5, 2 - md));
           real_influence -=
